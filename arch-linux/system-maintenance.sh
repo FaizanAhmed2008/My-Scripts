@@ -20,10 +20,19 @@ clean_cache() {
 
 # Show memory and disk usage in a clean format
 show_status() {
-    echo "--- Memory Usage ---"
-    free -h | awk 'NR==1 || /Mem/ {print}'
-    echo "--- Disk Usage (root) ---"
-    df -h / | awk 'NR==1 || /\// {print}'
+    # Print a clean, aligned status report for memory and disk usage
+    echo "=== System Status ==="
+
+    echo "Memory Usage:"
+    # Header and Mem line, formatted into columns
+    free -h | awk 'NR==1 || /Mem/ {printf "% -10s %8s %8s %8s %8s %8s\n", $1,$2,$3,$4,$5,$6}'
+
+    echo ""
+    echo "Disk Usage (root):"
+    # Header and root filesystem line, formatted into columns
+    df -h / | awk 'NR==1 || /\// {printf "% -20s %8s %8s %8s %8s %8s\n", $1,$2,$3,$4,$5,$6}'
+
+    echo "====================="
 }
 
 # Main execution flow
