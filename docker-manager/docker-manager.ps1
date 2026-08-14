@@ -168,11 +168,16 @@ function Delete-Images {
     
     foreach ($image in $images) {
         $parts = $image -split '\s*\|\s*'
-        $imageId = $parts[0].Substring(0, 12)
+        $imageId = $parts[0]
         $imageName = $parts[1]
         $imageSize = $parts[2]
         
-        Write-Host "[$i] $imageName ($imageSize)"
+        if (Test-Protected $imageId) {
+            Write-Green "[$i] $imageName ($imageSize) [PROTECTED]"
+        }
+        else {
+            Write-Host "[$i] $imageName ($imageSize)"
+        }
         $i++
     }
     
@@ -202,6 +207,24 @@ function Delete-Images {
         return
     }
     
+    # Check for protected images
+    $protectedCount = 0
+    foreach ($index in $selected) {
+        $image = $global:IMAGES[$index]
+        $parts = $image -split '\s*\|\s*'
+        $imageId = $parts[0]
+        if (Test-Protected $imageId) {
+            $protectedCount++
+        }
+    }
+    
+    if ($protectedCount -gt 0) {
+        Write-Host ""
+        Write-Red "Cannot delete protected images!"
+        Write-Host "$protectedCount image(s) selected are protected."
+        return
+    }
+    
     Write-Host ""
     Write-Red "Images that will be deleted:"
     Write-Host ""
@@ -228,6 +251,124 @@ function Delete-Images {
         
         Write-Host "Deleting $imageName..."
         docker image rm $imageId 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Green "Deleted: $imageName"
+        }
+        else {
+            Write-Red "Failed to delete: $imageName"
+        }
+    }
+    
+    Write-Host ""
+    Write-Green "Done!"
+}
+
+# ============================================================
+# Force Delete Images
+# ============================================================
+
+function Delete-Images-Force {
+    Clear-Host
+    Write-Cyan "========== Force Delete Images =========="
+    Write-Host ""
+    
+    $images = @(docker image ls --no-trunc --format "{{.ID}} | {{.Repository}}:{{.Tag}} | {{.Size}}")
+    
+    if ($images.Count -eq 0) {
+        Write-Yellow "No images found."
+        return
+    }
+    
+    $global:IMAGES = $images
+    $i = 1
+    
+    foreach ($image in $images) {
+        $parts = $image -split '\s*\|\s*'
+        $imageId = $parts[0]
+        $imageName = $parts[1]
+        $imageSize = $parts[2]
+        
+        if (Test-Protected $imageId) {
+            Write-Green "[$i] $imageName ($imageSize) [PROTECTED]"
+        }
+        else {
+            Write-Host "[$i] $imageName ($imageSize)"
+        }
+        $i++
+    }
+    
+    Write-Host ""
+    Write-Host "[0] Cancel"
+    Write-Host ""
+    
+    $selection = Read-Host "Enter image numbers to force delete (comma-separated)"
+    
+    if ($selection -eq "0") {
+        return
+    }
+    
+    $selected = @()
+    $selection -split "," | ForEach-Object {
+        $index = [int]$_.Trim() - 1
+        if ($index -ge 0 -and $index -lt $images.Count) {
+            if ($selected -notcontains $index) {
+                $selected += $index
+            }
+        }
+    }
+    
+    if ($selected.Count -eq 0) {
+        Write-Host ""
+        Write-Host "No images selected for deletion."
+        return
+    }
+    
+    # Check for protected images
+    $protectedCount = 0
+    foreach ($index in $selected) {
+        $image = $global:IMAGES[$index]
+        $parts = $image -split '\s*\|\s*'
+        $imageId = $parts[0]
+        if (Test-Protected $imageId) {
+            $protectedCount++
+        }
+    }
+    
+    if ($protectedCount -gt 0) {
+        Write-Host ""
+        Write-Red "Cannot delete protected images!"
+        Write-Host "$protectedCount image(s) selected are protected."
+        Write-Host "Unprotect them first if you want to delete."
+        return
+    }
+    
+    Write-Host ""
+    Write-Red "WARNING: These images will be force deleted (this cannot be undone):"
+    Write-Host ""
+    
+    foreach ($index in $selected) {
+        $image = $global:IMAGES[$index]
+        $parts = $image -split '\s*\|\s*'
+        $imageName = $parts[1]
+        $imageSize = $parts[2]
+        Write-Host "  - $imageName ($imageSize)"
+    }
+    
+    Write-Host ""
+    if (-not (Confirm-Action "Force delete these images?")) {
+        Write-Yellow "Cancelled."
+        return
+    }
+    
+    foreach ($index in $selected) {
+        $image = $global:IMAGES[$index]
+        $parts = $image -split '\s*\|\s*'
+        $imageId = $parts[0]
+        $imageName = $parts[1]
+        
+        Write-Host "Force deleting $imageName..."
+        docker image rm -f $imageId 2>&1 | Out-Null
         
         if ($LASTEXITCODE -eq 0) {
             Write-Green "Deleted: $imageName"
@@ -558,18 +699,22 @@ function Show-DockerUsage {
 
 function Show-Menu {
     Write-Host ""
-    Write-Cyan "====== Docker Manager ======"
+    Write-Cyan "========= Docker Manager =========="
     Write-Host ""
+    Write-Cyan "[IMAGES]"
     Write-Host "  1) List images"
     Write-Host "  2) Delete images"
-    Write-Host "  3) Add protected images"
-    Write-Host "  4) View protected images"
-    Write-Host "  5) Remove image protection"
+    Write-Host "  3) Force delete images"
+    Write-Host "  4) Protect images"
+    Write-Host "  5) View protected images"
+    Write-Host "  6) Unprotect images"
     Write-Host ""
-    Write-Host "  6) List containers"
-    Write-Host "  7) Force delete containers"
+    Write-Cyan "[CONTAINERS]"
+    Write-Host "  7) List containers"
+    Write-Host "  8) Delete containers"
     Write-Host ""
-    Write-Host "  8) Docker disk usage"
+    Write-Cyan "[SYSTEM]"
+    Write-Host "  9) Docker disk usage"
     Write-Host ""
     Write-Host "  0) Exit"
     Write-Host ""
@@ -597,26 +742,30 @@ while ($true) {
             Pause-Script
         }
         "3" {
-            Protect-Images
+            Delete-Images-Force
             Pause-Script
         }
         "4" {
-            View-Protected
+            Protect-Images
             Pause-Script
         }
         "5" {
-            Unprotect-Images
+            View-Protected
             Pause-Script
         }
         "6" {
-            List-Containers
+            Unprotect-Images
             Pause-Script
         }
         "7" {
-            Delete-Containers
+            List-Containers
             Pause-Script
         }
         "8" {
+            Delete-Containers
+            Pause-Script
+        }
+        "9" {
             Show-DockerUsage
             Pause-Script
         }
