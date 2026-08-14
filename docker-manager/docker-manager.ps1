@@ -111,7 +111,7 @@ function Test-Docker {
 
 function List-Images {
     Write-Host ""
-    Write-Cyan "🐳 Docker Images"
+    Write-Cyan "Ã°Å¸ÂÂ³ Docker Images"
     Write-Host "============================================================"
 
     $images = @(docker image ls --no-trunc --format '{{.ID}}|{{.Repository}}:{{.Tag}}|{{.Size}}|{{.CreatedSince}}' 2>$null)
@@ -138,7 +138,7 @@ function List-Images {
         if (Test-Protected $imageId) {
             $status = " "
             Write-Host ("{0,-5} {1,-30} {2,-15} {3,-15}" -f "[$i]", $imageName, $imageSize, $created) -NoNewline
-            Write-Yellow "🛡 PROTECTED"
+            Write-Yellow "Ã°Å¸â€ºÂ¡ PROTECTED"
         }
         else {
             Write-Host ("{0,-5} {1,-30} {2,-15} {3,-15}" -f "[$i]", $imageName, $imageSize, $created)
@@ -213,7 +213,7 @@ function Protect-Images {
         $image = $global:IMAGES[$index]
         $imageName = ($image -split '\|')[1]
         $imageSize = ($image -split '\|')[2]
-        Write-Host "  • $imageName ($imageSize)"
+        Write-Host "  Ã¢â‚¬Â¢ $imageName ($imageSize)"
     }
 
     Write-Host ""
@@ -229,7 +229,7 @@ function Protect-Images {
         $imageName = ($image -split '\|')[1]
 
         Add-Protected $imageId
-        Write-Green "✓ Protected:" $imageName
+        Write-Green "Ã¢Å“â€œ Protected:" $imageName
     }
 }
 
@@ -239,7 +239,7 @@ function Protect-Images {
 
 function View-Protected {
     Write-Host ""
-    Write-Cyan "🛡 Protected Images"
+    Write-Cyan "Ã°Å¸â€ºÂ¡ Protected Images"
     Write-Host "============================================================"
 
     $images = @(docker image ls --no-trunc --format '{{.ID}}|{{.Repository}}:{{.Tag}}|{{.Size}}|{{.CreatedSince}}' 2>$null)
@@ -289,7 +289,7 @@ function Unprotect-Images {
     }
 
     Write-Host ""
-    Write-Cyan "🔓 Protected Images"
+    Write-Cyan "Ã°Å¸â€â€œ Protected Images"
     Write-Host "============================================================"
 
     $i = 1
@@ -326,7 +326,7 @@ function Unprotect-Images {
         $imageName = ($image -split '\|')[1]
 
         Remove-Protected $imageId
-        Write-Green "✓ Protection removed:" $imageName
+        Write-Green "Ã¢Å“â€œ Protection removed:" $imageName
     }
 }
 
@@ -339,7 +339,7 @@ function Delete-Images {
         return
     }
 
-    Write-Red "⚠️  Delete Images"
+    Write-Red "Ã¢Å¡Â Ã¯Â¸Â  Delete Images"
     Write-Host "Enter numbers separated by commas."
     Write-Host "Example: 2,4,7"
     Write-Host ""
@@ -374,7 +374,7 @@ function Delete-Images {
         # Protection check
         if (Test-Protected $imageId) {
             $imageName = ($image -split '\|')[1]
-            Write-Yellow "🛡 Skipping protected image: $imageName"
+            Write-Yellow "Ã°Å¸â€ºÂ¡ Skipping protected image: $imageName"
             continue
         }
 
@@ -398,7 +398,7 @@ function Delete-Images {
         $image = $global:IMAGES[$index]
         $imageName = ($image -split '\|')[1]
         $imageSize = ($image -split '\|')[2]
-        Write-Host "  • $imageName ($imageSize)"
+        Write-Host "  Ã¢â‚¬Â¢ $imageName ($imageSize)"
     }
 
     Write-Host ""
@@ -415,13 +415,13 @@ function Delete-Images {
         $imageId = ($image -split '\|')[0]
         $imageName = ($image -split '\|')[1]
 
-        Write-Yellow "🗑 Deleting: $imageName"
+        Write-Yellow "Ã°Å¸â€”â€˜ Deleting: $imageName"
 
         if (docker image rm $imageId 2>$null) {
-            Write-Green "✓ Deleted"
+            Write-Green "Ã¢Å“â€œ Deleted"
         }
         else {
-            Write-Red "✗ Failed to delete"
+            Write-Red "Ã¢Å“â€” Failed to delete"
         }
 
         Write-Host ""
@@ -434,7 +434,7 @@ function Delete-Images {
 
 function List-Containers {
     Write-Host ""
-    Write-Cyan "🐳 Docker Containers"
+    Write-Cyan "Ã°Å¸ÂÂ³ Docker Containers"
     Write-Host "============================================================"
 
     $containers = @(docker ps -a --no-trunc --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}' 2>$null)
@@ -474,7 +474,7 @@ function Delete-Containers {
         return
     }
 
-    Write-Red "💀 FORCE DELETE CONTAINERS"
+    Write-Red "Ã°Å¸â€™â‚¬ FORCE DELETE CONTAINERS"
     Write-Host ""
     Write-Host "This uses: docker rm -f"
     Write-Host ""
@@ -527,7 +527,7 @@ function Delete-Containers {
         $image = $parts[2]
         $status = $parts[3]
 
-        Write-Host "  💀 $name"
+        Write-Host "  Ã°Å¸â€™â‚¬ $name"
         Write-Host "     Image:  $image"
         Write-Host "     Status: $status"
         Write-Host ""
@@ -545,13 +545,13 @@ function Delete-Containers {
         $containerId = ($container -split '\|')[0]
         $name = ($container -split '\|')[1]
 
-        Write-Yellow "💀 Force deleting: $name"
+        Write-Yellow "Ã°Å¸â€™â‚¬ Force deleting: $name"
 
         if (docker rm -f $containerId 2>$null) {
-            Write-Green "✓ Deleted"
+            Write-Green "Ã¢Å“â€œ Deleted"
         }
         else {
-            Write-Red "✗ Failed"
+            Write-Red "Ã¢Å“â€” Failed"
         }
 
         Write-Host ""
@@ -564,7 +564,7 @@ function Delete-Containers {
 
 function Show-DockerUsage {
     Write-Host ""
-    Write-Cyan "💾 Docker Disk Usage"
+    Write-Cyan "Ã°Å¸â€™Â¾ Docker Disk Usage"
     Write-Host "============================================================"
 
     docker system df
@@ -580,23 +580,23 @@ function Show-Menu {
     while ($true) {
         Clear-Host
 
-        Write-Cyan "╔══════════════════════════════════════════════╗"
-        Write-Cyan "║          🐳 Docker Manager                  ║"
-        Write-Cyan "╚══════════════════════════════════════════════╝"
+        Write-Cyan "Ã¢â€¢â€Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢â€”"
+        Write-Cyan "Ã¢â€¢â€˜          Ã°Å¸ÂÂ³ Docker Manager                  Ã¢â€¢â€˜"
+        Write-Cyan "Ã¢â€¢Å¡Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â"
 
         Write-Host ""
-        Write-Host "  1) 📋 List images"
-        Write-Host "  2) 🗑  Delete images"
-        Write-Host "  3) 🛡  Add protected images"
-        Write-Host "  4) 👀 View protected images"
-        Write-Host "  5) 🔓 Remove image protection"
+        Write-Host "  1) Ã°Å¸â€œâ€¹ List images"
+        Write-Host "  2) Ã°Å¸â€”â€˜  Delete images"
+        Write-Host "  3) Ã°Å¸â€ºÂ¡  Add protected images"
+        Write-Host "  4) Ã°Å¸â€˜â‚¬ View protected images"
+        Write-Host "  5) Ã°Å¸â€â€œ Remove image protection"
         Write-Host ""
-        Write-Host "  6) 📦 List containers"
-        Write-Host "  7) 💀 Force delete containers"
+        Write-Host "  6) Ã°Å¸â€œÂ¦ List containers"
+        Write-Host "  7) Ã°Å¸â€™â‚¬ Force delete containers"
         Write-Host ""
-        Write-Host "  8) 💾 Docker disk usage"
+        Write-Host "  8) Ã°Å¸â€™Â¾ Docker disk usage"
         Write-Host ""
-        Write-Host "  0) 🚪 Exit"
+        Write-Host "  0) Ã°Å¸Å¡Âª Exit"
         Write-Host ""
 
         $choice = Read-Host "Select option"
@@ -636,7 +636,7 @@ function Show-Menu {
             }
             "0" {
                 Write-Host ""
-                Write-Host "Bye 👋"
+                Write-Host "Bye Ã°Å¸â€˜â€¹"
                 exit 0
             }
             default {
