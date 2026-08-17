@@ -8,7 +8,6 @@ set -uo pipefail
 
 CONFIG_DIR="$HOME/.docker-image-manager"
 PROTECTED_FILE="$CONFIG_DIR/protected"
-
 mkdir -p "$CONFIG_DIR"
 touch "$PROTECTED_FILE"
 
@@ -418,6 +417,107 @@ delete_images() {
     done
 }
 
+# ------------------------------------------------------------
+# Force delete images
+# ------------------------------------------------------------
+
+force_delete_images() {
+
+    list_images || return
+
+    echo
+    echo -e "${RED}${BOLD}💀 FORCE DELETE IMAGES${RESET}"
+    echo "Enter numbers separated by commas."
+    echo "Example: 2,4,7"
+    echo
+
+    read -rp "> " selection
+
+    [[ -z "$selection" ]] && return
+
+    IFS=',' read -ra NUMBERS <<< "$selection"
+
+    local selected=()
+
+    for number in "${NUMBERS[@]}"; do
+
+        number="${number//[[:space:]]/}"
+
+        if ! [[ "$number" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid number: $number${RESET}"
+            continue
+        fi
+
+        if (( number < 1 || number > ${#IMAGES[@]} )); then
+            echo -e "${RED}Number out of range: $number${RESET}"
+            continue
+        fi
+
+        index=$((number - 1))
+
+        IFS='|' read -r image_id image_name image_size created \
+            <<< "${IMAGES[$index]}"
+
+        # Protection check
+        if is_protected "$image_id"; then
+            echo -e "${YELLOW}🛡 Skipping protected image: $image_name${RESET}"
+            continue
+        fi
+
+        # Prevent duplicate selections
+        duplicate=0
+
+        for existing in "${selected[@]}"; do
+            [[ "$existing" == "$index" ]] && duplicate=1
+        done
+
+        (( duplicate == 0 )) && selected+=("$index")
+    done
+
+    if [[ ${#selected[@]} -eq 0 ]]; then
+        echo
+        echo "No images selected for deletion."
+        return
+    fi
+
+    echo
+    echo -e "${RED}${BOLD}Images that will be FORCE DELETED:${RESET}"
+    echo
+
+    for index in "${selected[@]}"; do
+
+        IFS='|' read -r image_id image_name image_size created \
+            <<< "${IMAGES[$index]}"
+
+        echo "  💀 $image_name ($image_size)"
+    done
+
+    echo
+
+    if ! confirm "Permanently FORCE DELETE these images?"; then
+        echo "Cancelled."
+        return
+    fi
+
+    echo
+
+    for index in "${selected[@]}"; do
+
+        IFS='|' read -r image_id image_name image_size created \
+            <<< "${IMAGES[$index]}"
+
+        echo -e "${YELLOW}💀 Force deleting:${RESET} $image_name"
+
+        if docker image rm -f "$image_id"; then
+            echo -e "${GREEN}✓ Deleted${RESET}"
+        else
+            echo -e "${RED}✗ Failed to delete${RESET}"
+        fi
+
+        echo
+    done
+}
+
 # ============================================================
 # CONTAINER FUNCTIONS
 # ============================================================
@@ -459,6 +559,100 @@ list_containers() {
     echo
 
     return 0
+}
+
+# ------------------------------------------------------------
+# Delete containers (regular)
+# ------------------------------------------------------------
+
+delete_containers_regular() {
+
+    list_containers || return
+
+    echo -e "${YELLOW}${BOLD}🗑 Delete Containers${RESET}"
+    echo
+    echo "This uses:"
+    echo
+    echo "    docker rm"
+    echo
+    echo "Only stopped containers can be removed. Running containers will be skipped."
+    echo
+
+    read -rp "Enter container numbers (example: 1,3,5): " selection
+
+    [[ -z "$selection" ]] && return
+
+    IFS=',' read -ra NUMBERS <<< "$selection"
+
+    local selected=()
+
+    for number in "${NUMBERS[@]}"; do
+
+        number="${number//[[:space:]]/}"
+
+        if ! [[ "$number" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid number: $number${RESET}"
+            continue
+        fi
+
+        if (( number < 1 || number > ${#CONTAINERS[@]} )); then
+            echo -e "${RED}Number out of range: $number${RESET}"
+            continue
+        fi
+
+        index=$((number - 1))
+
+        duplicate=0
+
+        for existing in "${selected[@]}"; do
+            [[ "$existing" == "$index" ]] && duplicate=1
+        done
+
+        (( duplicate == 0 )) && selected+=("$index")
+    done
+
+    if [[ ${#selected[@]} -eq 0 ]]; then
+        echo "No containers selected."
+        return
+    fi
+
+    echo
+    echo -e "${YELLOW}${BOLD}Containers that will be deleted:${RESET}"
+    echo
+
+    for index in "${selected[@]}"; do
+
+        IFS='|' read -r container_id container_name image status \
+            <<< "${CONTAINERS[$index]}"
+
+        echo "  🗑 $container_name"
+        echo "     Image:  $image"
+        echo "     Status: $status"
+        echo
+    done
+
+    if ! confirm "Delete these containers?"; then
+        echo "Cancelled."
+        return
+    fi
+
+    echo
+
+    for index in "${selected[@]}"; do
+
+        IFS='|' read -r container_id container_name image status \
+            <<< "${CONTAINERS[$index]}"
+
+        echo -e "${YELLOW}🗑 Deleting:${RESET} $container_name"
+
+        if docker rm "$container_id"; then
+            echo -e "${GREEN}✓ Deleted${RESET}"
+        else
+            echo -e "${RED}✗ Failed (container may be running - use force delete)${RESET}"
+        fi
+
+        echo
+    done
 }
 
 # ------------------------------------------------------------
@@ -556,6 +750,131 @@ delete_containers() {
 }
 
 # ============================================================
+# VOLUME FUNCTIONS
+# ============================================================
+
+list_volumes() {
+
+    echo
+    echo -e "${CYAN}${BOLD}📦 Docker Volumes${RESET}"
+    echo "============================================================"
+
+    mapfile -t VOLUMES < <(
+        docker volume ls \
+        --format '{{.Name}}|{{.Driver}}'
+    )
+
+    if [[ ${#VOLUMES[@]} -eq 0 ]]; then
+        echo "No volumes found."
+        return 1
+    fi
+
+    printf "%-5s %-40s %-15s\n" \
+        "#" "NAME" "DRIVER"
+
+    echo "------------------------------------------------------------"
+
+    local i=1
+
+    for vol in "${VOLUMES[@]}"; do
+
+        IFS='|' read -r vol_name vol_driver <<< "$vol"
+
+        printf "%-5s %-40s %-15s\n" \
+            "[$i]" "$vol_name" "$vol_driver"
+
+        ((i++))
+    done
+
+    echo
+
+    return 0
+}
+
+delete_volumes() {
+
+    list_volumes || return
+
+    echo
+    echo -e "${RED}${BOLD}⚠️  Delete Volumes${RESET}"
+    echo "Enter numbers separated by commas."
+    echo "Example: 2,4,7"
+    echo
+
+    read -rp "> " selection
+
+    [[ -z "$selection" ]] && return
+
+    IFS=',' read -ra NUMBERS <<< "$selection"
+
+    local selected=()
+
+    for number in "${NUMBERS[@]}"; do
+
+        number="${number//[[:space:]]/}"
+
+        if ! [[ "$number" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid number: $number${RESET}"
+            continue
+        fi
+
+        if (( number < 1 || number > ${#VOLUMES[@]} )); then
+            echo -e "${RED}Number out of range: $number${RESET}"
+            continue
+        fi
+
+        index=$((number - 1))
+
+        # Prevent duplicate selections
+        duplicate=0
+
+        for existing in "${selected[@]}"; do
+            [[ "$existing" == "$index" ]] && duplicate=1
+        done
+
+        (( duplicate == 0 )) && selected+=("$index")
+    done
+
+    if [[ ${#selected[@]} -eq 0 ]]; then
+        echo
+        echo "No volumes selected for deletion."
+        return
+    fi
+
+    echo
+    echo -e "${RED}${BOLD}Volumes that will be deleted:${RESET}"
+    echo
+
+    for index in "${selected[@]}"; do
+        IFS='|' read -r vol_name vol_driver <<< "${VOLUMES[$index]}"
+        echo "  • $vol_name ($vol_driver)"
+    done
+
+    echo
+
+    if ! confirm "Permanently delete these volumes?"; then
+        echo "Cancelled."
+        return
+    fi
+
+    echo
+
+    for index in "${selected[@]}"; do
+        IFS='|' read -r vol_name vol_driver <<< "${VOLUMES[$index]}"
+
+        echo -e "${YELLOW}🗑 Deleting:${RESET} $vol_name"
+
+        if docker volume rm "$vol_name"; then
+            echo -e "${GREEN}✓ Deleted${RESET}"
+        else
+            echo -e "${RED}✗ Failed to delete${RESET}"
+        fi
+
+        echo
+    done
+}
+
+# ============================================================
 # DOCKER DISK USAGE
 # ============================================================
 
@@ -588,14 +907,19 @@ main_menu() {
 
         echo "  1) 📋 List images"
         echo "  2) 🗑  Delete images"
-        echo "  3) 🛡  Add protected images"
-        echo "  4) 👀 View protected images"
-        echo "  5) 🔓 Remove image protection"
+        echo "  3) 💀 Force delete images"
+        echo "  4) 🛡  Add protected images"
+        echo "  5) 👀 View protected images"
+        echo "  6) 🔓 Remove image protection"
         echo
-        echo "  6) 📦 List containers"
-        echo "  7) 💀 Force delete containers"
+        echo "  7) 📦 List containers"
+        echo "  8) 🗑  Delete containers"
+        echo "  9) 💀 Force delete containers"
         echo
-        echo "  8) 💾 Docker disk usage"
+        echo " 10) 🗄️  List volumes"
+        echo " 11) 🗑  Delete volumes"
+        echo
+        echo " 12) 💾 Docker disk usage"
         echo
         echo "  0) 🚪 Exit"
         echo
@@ -615,31 +939,51 @@ main_menu() {
                 ;;
 
             3)
-                protect_images
+                force_delete_images
                 pause
                 ;;
 
             4)
-                view_protected
+                protect_images
                 pause
                 ;;
 
             5)
-                unprotect_images
+                view_protected
                 pause
                 ;;
 
             6)
-                list_containers
+                unprotect_images
                 pause
                 ;;
 
             7)
-                delete_containers
+                list_containers
                 pause
                 ;;
 
             8)
+                delete_containers_regular
+                pause
+                ;;
+
+            9)
+                delete_containers
+                pause
+                ;;
+
+            10)
+                list_volumes
+                pause
+                ;;
+
+            11)
+                delete_volumes
+                pause
+                ;;
+
+            12)
                 docker_usage
                 pause
                 ;;
