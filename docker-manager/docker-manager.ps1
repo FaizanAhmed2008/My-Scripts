@@ -681,6 +681,129 @@ function Delete-Containers {
 }
 
 # ============================================================
+# List Volumes
+# ============================================================
+
+function List-Volumes {
+    Clear-Host
+    Write-Cyan "========== Docker Volumes =========="
+    Write-Host ""
+    
+    $volumes = @(docker volume ls --format "{{.Name}}|{{.Driver}}")
+    
+    if ($volumes.Count -eq 0) {
+        Write-Yellow "No volumes found."
+        return
+    }
+    
+    Write-Host ("{0,-40} {1,-15}" -f "NAME", "DRIVER")
+    Write-Host "============================================================"
+    
+    foreach ($volume in $volumes) {
+        $parts = $volume -split '\|'
+        $name = $parts[0]
+        $driver = $parts[1]
+        
+        $name = if ($name.Length -gt 40) { $name.Substring(0, 37) + "..." } else { $name }
+        
+        Write-Host ("{0,-40} {1,-15}" -f $name, $driver)
+    }
+    
+    Write-Host ""
+}
+
+# ============================================================
+# Delete Volumes
+# ============================================================
+
+function Delete-Volumes {
+    Clear-Host
+    Write-Cyan "========== Delete Volumes =========="
+    Write-Host ""
+    
+    $volumes = @(docker volume ls --format "{{.Name}} | {{.Driver}}")
+    
+    if ($volumes.Count -eq 0) {
+        Write-Yellow "No volumes found."
+        return
+    }
+    
+    $global:VOLUMES = $volumes
+    $i = 1
+    
+    foreach ($volume in $volumes) {
+        $parts = $volume -split '\s*\|\s*'
+        $name = $parts[0]
+        $driver = $parts[1]
+        
+        Write-Host "[$i] $name ($driver)"
+        $i++
+    }
+    
+    Write-Host ""
+    Write-Host "[0] Cancel"
+    Write-Host ""
+    
+    $selection = Read-Host "Enter volume numbers to delete (comma-separated)"
+    
+    if ($selection -eq "0") {
+        return
+    }
+    
+    $selected = @()
+    $selection -split "," | ForEach-Object {
+        $index = [int]$_.Trim() - 1
+        if ($index -ge 0 -and $index -lt $volumes.Count) {
+            if ($selected -notcontains $index) {
+                $selected += $index
+            }
+        }
+    }
+    
+    if ($selected.Count -eq 0) {
+        Write-Host ""
+        Write-Host "No volumes selected for deletion."
+        return
+    }
+    
+    Write-Host ""
+    Write-Red "Volumes that will be deleted:"
+    Write-Host ""
+    
+    foreach ($index in $selected) {
+        $volume = $global:VOLUMES[$index]
+        $parts = $volume -split '\s*\|\s*'
+        $name = $parts[0]
+        Write-Host "  - $name"
+    }
+    
+    Write-Host ""
+    if (-not (Confirm-Action "Delete these volumes?")) {
+        Write-Yellow "Cancelled."
+        return
+    }
+    
+    foreach ($index in $selected) {
+        $volume = $global:VOLUMES[$index]
+        $parts = $volume -split '\s*\|\s*'
+        $name = $parts[0]
+        
+        Write-Host "Deleting $name..."
+        docker volume rm $name 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Green "Deleted: $name"
+        }
+        else {
+            Write-Red "Failed to delete: $name"
+        }
+    }
+    
+    Write-Host ""
+    Write-Green "Done!"
+}
+
+# ============================================================
 # Docker Usage
 # ============================================================
 
@@ -713,8 +836,12 @@ function Show-Menu {
     Write-Host "  7) List containers"
     Write-Host "  8) Delete containers"
     Write-Host ""
+    Write-Cyan "[VOLUMES]"
+    Write-Host "  9) List volumes"
+    Write-Host " 10) Delete volumes"
+    Write-Host ""
     Write-Cyan "[SYSTEM]"
-    Write-Host "  9) Docker disk usage"
+    Write-Host " 11) Docker disk usage"
     Write-Host ""
     Write-Host "  0) Exit"
     Write-Host ""
@@ -766,6 +893,14 @@ while ($true) {
             Pause-Script
         }
         "9" {
+            List-Volumes
+            Pause-Script
+        }
+        "10" {
+            Delete-Volumes
+            Pause-Script
+        }
+        "11" {
             Show-DockerUsage
             Pause-Script
         }
