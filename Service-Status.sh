@@ -1,5 +1,5 @@
 #!/bin/bash
-#this script checks the status of all running services and their associated ports on a Linux system.
+
 echo "=============================================="
 echo "        LINUX SERVICE & PORT MONITOR"
 echo "=============================================="
