@@ -4,7 +4,6 @@
 # -----------------------------------
 
 # Define directories to backup (space separated)
-# Note: Customize these paths to suit your needs.
 BACKUP_DIRS="$HOME/Pictures/Camera"
 
 # Define backup destination directory
