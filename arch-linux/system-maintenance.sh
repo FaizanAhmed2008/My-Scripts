@@ -1,46 +1,180 @@
 #!/usr/bin/env bash
 
-# Simple system maintenance script for Arch Linux
-# Performs update/upgrade, cleans cache, and shows memory & disk usage.
+set -uo pipefail
 
-set -e
+# ============================================================
+# Interactive System Maintenance Script
+# ============================================================
 
-# Update and upgrade the system
+# ------------------------------------------------------------
+# Colors
+# ------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+pause() {
+    echo
+    read -rp "Press Enter to continue..."
+}
+
+confirm() {
+    local answer
+    read -rp "$1 [y/N]: " answer
+    [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+# ------------------------------------------------------------
+# System Detection
+# ------------------------------------------------------------
+detect_package_manager() {
+    PKG_MANAGER=""
+    UPDATE_CMD=""
+    CLEAN_CMD=""
+    
+    if command -v paru >/dev/null 2>&1; then
+        PKG_MANAGER="paru"
+        UPDATE_CMD="paru -Syu"
+        CLEAN_CMD="paru -Sc"
+    elif command -v yay >/dev/null 2>&1; then
+        PKG_MANAGER="yay"
+        UPDATE_CMD="yay -Syu"
+        CLEAN_CMD="yay -Sc"
+    elif command -v pacman >/dev/null 2>&1; then
+        PKG_MANAGER="pacman"
+        UPDATE_CMD="sudo pacman -Syu"
+        CLEAN_CMD="sudo pacman -Sc"
+    elif command -v apt-get >/dev/null 2>&1; then
+        PKG_MANAGER="apt"
+        UPDATE_CMD="sudo apt update && sudo apt upgrade -y"
+        CLEAN_CMD="sudo apt autoremove -y && sudo apt clean"
+    elif command -v dnf >/dev/null 2>&1; then
+        PKG_MANAGER="dnf"
+        UPDATE_CMD="sudo dnf upgrade -y"
+        CLEAN_CMD="sudo dnf clean all"
+    elif command -v zypper >/dev/null 2>&1; then
+        PKG_MANAGER="zypper"
+        UPDATE_CMD="sudo zypper refresh && sudo zypper update -y"
+        CLEAN_CMD="sudo zypper clean"
+    else
+        echo -e "${RED}Unsupported package manager. Cannot update system automatically.${RESET}"
+        pause
+        exit 1
+    fi
+}
+
+# ------------------------------------------------------------
+# Core Functions
+# ------------------------------------------------------------
 update_system() {
-    echo "Updating package database and upgrading packages..."
-    sudo pacman -Syu --noconfirm
+    echo -e "${CYAN}${BOLD}🔄 Updating System (${PKG_MANAGER})${RESET}"
+    echo "============================================================"
+    
+    if confirm "Do you want to proceed with the system update?"; then
+        echo -e "${YELLOW}Running: ${UPDATE_CMD}${RESET}"
+        eval "$UPDATE_CMD"
+        echo -e "${GREEN}✓ Update completed.${RESET}"
+    else
+        echo "Update cancelled."
+    fi
 }
 
-# Clean package cache and temporary files
 clean_cache() {
-    echo "Cleaning package cache..."
-    echo "Removing temporary files..."
-    sudo rm -rf /tmp/*
+    echo -e "${CYAN}${BOLD}🧹 Cleaning Cache & Temp Files${RESET}"
+    echo "============================================================"
+    
+    if confirm "Proceed with cleaning package cache and /tmp directory?"; then
+        echo -e "${YELLOW}Running package cache clean (${CLEAN_CMD})...${RESET}"
+        eval "$CLEAN_CMD"
+        
+        echo -e "${YELLOW}Cleaning /tmp files...${RESET}"
+        sudo rm -rf /tmp/* 2>/dev/null || true
+        
+        echo -e "${GREEN}✓ Cleaning completed.${RESET}"
+    else
+        echo "Cleaning cancelled."
+    fi
 }
 
-# Show memory and disk usage in a clean format
 show_status() {
-    # Print a clean, aligned status report for memory and disk usage
-    echo "=== System Status ==="
-
-    echo "Memory Usage:"
-    # Header and Mem line, formatted into columns
+    echo -e "${CYAN}${BOLD}📊 System Status${RESET}"
+    echo "============================================================"
+    
+    echo -e "${YELLOW}Memory Usage:${RESET}"
     free -h | awk 'NR==1 || /Mem/ {printf "% -10s %8s %8s %8s %8s %8s\n", $1,$2,$3,$4,$5,$6}'
-
+    
     echo ""
-    echo "Disk Usage (root):"
-    # Header and root filesystem line, formatted into columns
+    echo -e "${YELLOW}Disk Usage (root):${RESET}"
     df -h / | awk 'NR==1 || /\// {printf "% -20s %8s %8s %8s %8s %8s\n", $1,$2,$3,$4,$5,$6}'
-
-    echo "====================="
 }
 
-# Main execution flow
-main() {
+perform_all() {
     update_system
+    echo
     clean_cache
+    echo
     show_status
-    echo "All tasks completed."
 }
 
-main "$@"
+# ------------------------------------------------------------
+# Main Menu
+# ------------------------------------------------------------
+main_menu() {
+    detect_package_manager
+
+    while true; do
+        clear
+        echo -e "${BLUE}${BOLD}========================================${RESET}"
+        echo -e "${GREEN}${BOLD}       System Maintenance Utility       ${RESET}"
+        echo -e "${BLUE}${BOLD}========================================${RESET}"
+        echo -e "Detected Package Manager: ${YELLOW}${PKG_MANAGER}${RESET}"
+        echo
+        echo -e "  [1] 🔄 Update System"
+        echo -e "  [2] 🧹 Clean Cache & Temp Files"
+        echo -e "  [3] 📊 Show System Status"
+        echo -e "  [4] 🚀 Perform All Tasks"
+        echo -e "  [0] ❌ Exit"
+        echo
+        read -rp "Select an option [0-4]: " choice
+
+        case "$choice" in
+            1)
+                echo
+                update_system
+                pause
+                ;;
+            2)
+                echo
+                clean_cache
+                pause
+                ;;
+            3)
+                echo
+                show_status
+                pause
+                ;;
+            4)
+                echo
+                perform_all
+                pause
+                ;;
+            0)
+                echo -e "${GREEN}Exiting...${RESET}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option!${RESET}"
+                pause
+                ;;
+        esac
+    done
+}
+
+main_menu
