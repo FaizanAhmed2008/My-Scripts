@@ -38,7 +38,7 @@ detect_package_manager() {
     PKG_MANAGER=""
     UPDATE_CMD=""
     CLEAN_CMD=""
-    
+
     if command -v paru >/dev/null 2>&1; then
         PKG_MANAGER="paru"
         UPDATE_CMD="paru -Syu"
@@ -63,6 +63,18 @@ detect_package_manager() {
         PKG_MANAGER="zypper"
         UPDATE_CMD="sudo zypper refresh && sudo zypper update -y"
         CLEAN_CMD="sudo zypper clean"
+    elif command -v flatpak >/dev/null 2>&1; then
+        PKG_MANAGER="flatpak"
+        UPDATE_CMD="flatpak update -y"
+        CLEAN_CMD="flatpak uninstall --unused -y"
+    elif command -v snap >/dev/null 2>&1; then
+        PKG_MANAGER="snap"
+        UPDATE_CMD="sudo snap refresh"
+        CLEAN_CMD="sudo snap set system refresh.retain=2"
+    elif command -v nix-env >/dev/null 2>&1; then
+        PKG_MANAGER="nix"
+        UPDATE_CMD="nix-channel --update && nix-env -u"
+        CLEAN_CMD="nix-collect-garbage -d"
     else
         echo -e "${RED}Unsupported package manager. Cannot update system automatically.${RESET}"
         pause
@@ -89,17 +101,56 @@ update_system() {
 clean_cache() {
     echo -e "${CYAN}${BOLD}🧹 Cleaning Cache & Temp Files${RESET}"
     echo "============================================================"
-    
+
     if confirm "Proceed with cleaning package cache and /tmp directory?"; then
         echo -e "${YELLOW}Running package cache clean (${CLEAN_CMD})...${RESET}"
         eval "$CLEAN_CMD"
-        
+
         echo -e "${YELLOW}Cleaning /tmp files...${RESET}"
         sudo rm -rf /tmp/* 2>/dev/null || true
-        
+
         echo -e "${GREEN}✓ Cleaning completed.${RESET}"
     else
         echo "Cleaning cancelled."
+    fi
+}
+
+clean_trash() {
+    echo -e "${CYAN}${BOLD}🗑️  Cleaning Trash${RESET}"
+    echo "============================================================"
+
+    local user_trash="$HOME/.local/share/Trash"
+    local root_trash="/root/.local/share/Trash"
+    local cleaned=0
+
+    if confirm "Proceed with cleaning user and root trash directories?"; then
+        if [[ -d "$user_trash/files" ]] || [[ -d "$user_trash/info" ]]; then
+            echo -e "${YELLOW}Cleaning user trash ($user_trash)...${RESET}"
+            rm -rf "$user_trash/files"/* "$user_trash/info"/* 2>/dev/null || true
+            cleaned=1
+        else
+            echo -e "${GREEN}User trash already empty.${RESET}"
+        fi
+
+        if [[ $EUID -eq 0 ]] || sudo -n true 2>/dev/null; then
+            if [[ -d "$root_trash/files" ]] || [[ -d "$root_trash/info" ]]; then
+                echo -e "${YELLOW}Cleaning root trash ($root_trash)...${RESET}"
+                sudo rm -rf "$root_trash/files"/* "$root_trash/info"/* 2>/dev/null || true
+                cleaned=1
+            else
+                echo -e "${GREEN}Root trash already empty.${RESET}"
+            fi
+        else
+            echo -e "${YELLOW}Skipping root trash (requires sudo).${RESET}"
+        fi
+
+        if [[ $cleaned -eq 1 ]]; then
+            echo -e "${GREEN}✓ Trash cleaning completed.${RESET}"
+        else
+            echo -e "${GREEN}✓ No trash to clean.${RESET}"
+        fi
+    else
+        echo "Trash cleaning cancelled."
     fi
 }
 
@@ -120,6 +171,8 @@ perform_all() {
     echo
     clean_cache
     echo
+    clean_trash
+    echo
     show_status
 }
 
@@ -138,11 +191,12 @@ main_menu() {
         echo
         echo -e "  [1] 🔄 Update System"
         echo -e "  [2] 🧹 Clean Cache & Temp Files"
-        echo -e "  [3] 📊 Show System Status"
-        echo -e "  [4] 🚀 Perform All Tasks"
+        echo -e "  [3] 🗑️  Clean Trash"
+        echo -e "  [4] 📊 Show System Status"
+        echo -e "  [5] 🚀 Perform All Tasks"
         echo -e "  [0] ❌ Exit"
         echo
-        read -rp "Select an option [0-4]: " choice
+        read -rp "Select an option [0-5]: " choice
 
         case "$choice" in
             1)
@@ -157,10 +211,15 @@ main_menu() {
                 ;;
             3)
                 echo
-                show_status
+                clean_trash
                 pause
                 ;;
             4)
+                echo
+                show_status
+                pause
+                ;;
+            5)
                 echo
                 perform_all
                 pause
